@@ -1,5 +1,4 @@
-// Replace this with YOUR actual Render URL
-const PROXY_URL = 'https://reddit-proxy-server-hhk2.onrender.com/api/reddit?path=/r/popular.json';
+const PROXY_URL = 'https://YOUR-RENDER-URL.onrender.com';
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
@@ -12,7 +11,7 @@ const buildUrl = (path) => {
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 2000;
 
-const rateLimitedFetch = async (url) => {
+const rateLimitedFetch = async (url, retries = 2) => {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
 
@@ -30,6 +29,13 @@ const rateLimitedFetch = async (url) => {
       throw new Error('Rate limited. Please wait a minute and try again.');
     }
 
+    // Retry on 500/502/503 (Render waking up)
+    if (response.status >= 500 && retries > 0) {
+      console.log(`Server error ${response.status}, retrying in 5 seconds...`);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      return rateLimitedFetch(url, retries - 1);
+    }
+
     if (!response.ok) {
       throw new Error(`Reddit API error: ${response.status}`);
     }
@@ -42,8 +48,13 @@ const rateLimitedFetch = async (url) => {
 
     return data;
   } catch (error) {
+    if (error.message.includes('Failed to fetch') && retries > 0) {
+      console.log('Network error, retrying in 5 seconds...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      return rateLimitedFetch(url, retries - 1);
+    }
     if (error.message.includes('Failed to fetch')) {
-      throw new Error('Network error. Please check your connection.');
+      throw new Error('Server is starting up. Please wait a moment and refresh.');
     }
     throw error;
   }
