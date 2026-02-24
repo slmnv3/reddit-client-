@@ -3,10 +3,15 @@
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
+  let url;
   if (isDev) {
-    return `https://www.reddit.com${path}`;
+    url = `https://www.reddit.com${path}`;
+  } else {
+    url = `/api/reddit-proxy?path=${encodeURIComponent(path)}`;
   }
-  return `/api/reddit-proxy?path=${encodeURIComponent(path)}`;
+  console.log('Environment:', isDev ? 'Development' : 'Production');
+  console.log('Fetching URL:', url);
+  return url;
 };
 
 let lastRequestTime = 0;
