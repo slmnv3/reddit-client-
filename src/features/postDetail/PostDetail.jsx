@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Comment from '../../components/Comment/Comment';
+import VideoPlayer from '../../components/VideoPlayer/VideoPlayer';
 import { CommentSkeleton } from '../../components/Skeleton/Skeleton';
 import ErrorState from '../../components/ErrorState/ErrorState';
 import { timeAgo } from '../../utils/timeAgo';
@@ -41,6 +42,16 @@ export default function PostDetail() {
     };
   }, [dispatch, posts, postId]);
 
+  // Get image URL from Reddit post data
+  const getImageUrl = () => {
+    if (!post) return null;
+    if (post.post_hint === 'image') return post.url;
+    if (post.preview?.images?.[0]?.source?.url) {
+      return post.preview.images[0].source.url.replace(/&amp;/g, '&');
+    }
+    return null;
+  };
+
   if (!post) {
     return (
       <ErrorState
@@ -49,6 +60,8 @@ export default function PostDetail() {
       />
     );
   }
+
+  const imageUrl = getImageUrl();
 
   return (
     <div className={styles.container}>
@@ -84,10 +97,11 @@ export default function PostDetail() {
 
           <h1 className={styles.title}>{post.title}</h1>
 
-          {post.post_hint === 'image' && post.url && (
+          {/* Image */}
+          {imageUrl && !post.is_video && (
             <div className={styles.imageContainer}>
               <img
-                src={post.url}
+                src={imageUrl}
                 alt={post.title}
                 className={styles.image}
                 onError={(e) => {
@@ -95,6 +109,15 @@ export default function PostDetail() {
                 }}
               />
             </div>
+          )}
+
+          {/* Video with audio using HLS */}
+          {post.is_video && post.media?.reddit_video && (
+            <VideoPlayer
+              hlsUrl={post.media.reddit_video.hls_url}
+              fallbackUrl={post.media.reddit_video.fallback_url}
+              height={post.media.reddit_video.height}
+            />
           )}
 
           {post.selftext && (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { timeAgo } from '../../utils/timeAgo';
 import { formatNumber } from '../../utils/formatNumber';
+import VideoPlayer from '../VideoPlayer/VideoPlayer';
 import styles from './PostCard.module.css';
 
 export default function PostCard({ post }) {
@@ -17,11 +18,9 @@ export default function PostCard({ post }) {
 
   const currentScore = post.score + voteStatus;
 
-  // Get image URL from Reddit post data
   const getImageUrl = () => {
     if (post.post_hint === 'image') return post.url;
     if (post.preview?.images?.[0]?.source?.url) {
-      // Reddit HTML-encodes URLs in preview
       return post.preview.images[0].source.url.replace(/&amp;/g, '&');
     }
     return null;
@@ -51,19 +50,14 @@ export default function PostCard({ post }) {
 
       <div className={styles.content}>
         <div className={styles.meta}>
-          <span className={styles.subreddit}>
-            {post.subreddit_name_prefixed}
-          </span>
+          <span className={styles.subreddit}>{post.subreddit_name_prefixed}</span>
           <span className={styles.separator}>•</span>
           <span className={styles.author}>u/{post.author}</span>
           <span className={styles.separator}>•</span>
           <span className={styles.time}>{timeAgo(post.created_utc)}</span>
         </div>
 
-        <Link
-          to={`/post/${post.subreddit}/${post.id}`}
-          className={styles.titleLink}
-        >
+        <Link to={`/post/${post.subreddit}/${post.id}`} className={styles.titleLink}>
           <h2 className={styles.title}>{post.title}</h2>
         </Link>
 
@@ -74,35 +68,29 @@ export default function PostCard({ post }) {
           </p>
         )}
 
-        {imageUrl && (
+        {imageUrl && !post.is_video && (
           <div className={styles.imageContainer}>
             <img
               src={imageUrl}
               alt={post.title}
               className={styles.image}
               loading="lazy"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
+              onError={(e) => { e.target.style.display = 'none'; }}
             />
           </div>
         )}
 
-        {post.is_video && post.media?.reddit_video?.fallback_url && (
-          <div className={styles.videoContainer}>
-            <video
-              controls
-              className={styles.video}
-              src={post.media.reddit_video.fallback_url}
-            />
-          </div>
+        {/* ✅ Video with audio using HLS */}
+        {post.is_video && post.media?.reddit_video && (
+          <VideoPlayer
+            hlsUrl={post.media.reddit_video.hls_url}
+            fallbackUrl={post.media.reddit_video.fallback_url}
+            height={post.media.reddit_video.height}
+          />
         )}
 
         <div className={styles.actions}>
-          <Link
-            to={`/post/${post.subreddit}/${post.id}`}
-            className={styles.commentsButton}
-          >
+          <Link to={`/post/${post.subreddit}/${post.id}`} className={styles.commentsButton}>
             💬 {formatNumber(post.num_comments)} comments
           </Link>
         </div>
