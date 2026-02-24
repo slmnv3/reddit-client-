@@ -1,7 +1,13 @@
-// Use proxy in production, direct in development
-const BASE_URL = import.meta.env.PROD
-  ? '/api'
-  : 'https://www.reddit.com';
+// In development, call Reddit directly
+// In production, use our Netlify serverless function as proxy
+const isDev = import.meta.env.DEV;
+
+const buildUrl = (path) => {
+  if (isDev) {
+    return `https://www.reddit.com${path}`;
+  }
+  return `/api/reddit-proxy?path=${encodeURIComponent(path)}`;
+};
 
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 7000;
@@ -18,35 +24,34 @@ const rateLimitedFetch = async (url) => {
   lastRequestTime = Date.now();
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-
-    if (response.status === 403) {
-      throw new Error('Access denied by Reddit. Please try again later.');
-    }
+    const response = await fetch(url);
 
     if (response.status === 429) {
       console.warn('Rate limited. Waiting 60 seconds...');
       await new Promise((resolve) => setTimeout(resolve, 60000));
-      const retryResponse = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+      const retryResponse = await fetch(url);
       if (!retryResponse.ok) {
         throw new Error('Still rate limited. Please wait and try again.');
       }
       return retryResponse.json();
     }
 
+    if (response.status === 403) {
+      throw new Error('Access denied by Reddit. Please try again later.');
+    }
+
     if (!response.ok) {
       throw new Error(`Reddit API error: ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+
+    // Check if Reddit returned an error
+    if (data.error) {
+      throw new Error(`Reddit error: ${data.error}`);
+    }
+
+    return data;
   } catch (error) {
     if (error.message.includes('Failed to fetch')) {
       throw new Error('Network error. Please check your connection.');
@@ -72,7 +77,8 @@ const cachedFetch = async (url) => {
 
 export const fetchPosts = async (subreddit = 'popular') => {
   try {
-    const data = await cachedFetch(`${BASE_URL}/r/${subreddit}.json`);
+    const url = buildUrl(`/r/${subreddit}.json`);
+    const data = await cachedFetch(url);
     return data.data.children.map((post) => post.data);
   } catch (error) {
     throw new Error(error.message || 'Failed to fetch posts');
@@ -81,9 +87,8 @@ export const fetchPosts = async (subreddit = 'popular') => {
 
 export const searchPosts = async (searchTerm) => {
   try {
-    const data = await cachedFetch(
-      `${BASE_URL}/search.json?q=${encodeURIComponent(searchTerm)}`
-    );
+    const url = buildUrl(`/search.json?q=${encodeURIComponent(searchTerm)}`);
+    const data = await cachedFetch(url);
     return data.data.children.map((post) => post.data);
   } catch (error) {
     throw new Error(error.message || 'Failed to search posts');
@@ -92,7 +97,8 @@ export const searchPosts = async (searchTerm) => {
 
 export const fetchPostComments = async (permalink) => {
   try {
-    const data = await cachedFetch(`${BASE_URL}${permalink}.json`);
+    const url = buildUrl(`${permalink}.json`);
+    const data = await cachedFetch(url);
     return data[1].data.children
       .filter((comment) => comment.kind === 't1')
       .map((comment) => comment.data);
@@ -103,9 +109,8 @@ export const fetchPostComments = async (permalink) => {
 
 export const fetchSubreddits = async () => {
   try {
-    const data = await cachedFetch(
-      `${BASE_URL}/subreddits/popular.json?limit=20`
-    );
+    const url = buildUrl('/subreddits/popular.json?limit=20');
+    const data = await cachedFetch(url);
     return data.data.children.map((sub) => sub.data);
   } catch (error) {
     throw new Error(error.message || 'Failed to fetch subreddits');
