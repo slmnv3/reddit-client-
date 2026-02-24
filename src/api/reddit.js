@@ -1,10 +1,13 @@
+const REDDIT_URL = 'https://www.reddit.com';
+const CORS_PROXY = 'https://corsproxy.io/?';
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
+  const redditUrl = `${REDDIT_URL}${path}`;
   if (isDev) {
-    return `https://www.reddit.com${path}`;
+    return redditUrl;
   }
-  return `/api/reddit-proxy?path=${encodeURIComponent(path)}`;
+  return `${CORS_PROXY}${encodeURIComponent(redditUrl)}`;
 };
 
 let lastRequestTime = 0;
@@ -32,13 +35,14 @@ const rateLimitedFetch = async (url) => {
       throw new Error(`Reddit API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const text = await response.text();
 
-    if (data.error) {
-      throw new Error(data.error);
+    // Check if we got HTML instead of JSON
+    if (text.startsWith('<!') || text.startsWith('<')) {
+      throw new Error('Reddit is temporarily unavailable. Please try again.');
     }
 
-    return data;
+    return JSON.parse(text);
   } catch (error) {
     if (error.message.includes('Failed to fetch')) {
       throw new Error('Network error. Please check your connection.');
