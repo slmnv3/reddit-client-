@@ -1,17 +1,16 @@
-const REDDIT_URL = 'https://www.reddit.com';
-const CORS_PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+// Replace this with YOUR actual Render URL
+const PROXY_URL = 'https://reddit-proxy-server-hhk2.onrender.com/api/reddit?path=/r/popular.json';
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
-  const redditUrl = `${REDDIT_URL}${path}`;
   if (isDev) {
-    return redditUrl;
+    return `https://www.reddit.com${path}`;
   }
-  return `${CORS_PROXY}${encodeURIComponent(redditUrl)}`;
+  return `${PROXY_URL}/api/reddit?path=${encodeURIComponent(path)}`;
 };
 
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 7000;
+const MIN_REQUEST_INTERVAL = 2000;
 
 const rateLimitedFetch = async (url) => {
   const now = Date.now();
@@ -35,14 +34,13 @@ const rateLimitedFetch = async (url) => {
       throw new Error(`Reddit API error: ${response.status}`);
     }
 
-    const text = await response.text();
+    const data = await response.json();
 
-    // Check if we got HTML instead of JSON
-    if (text.startsWith('<!') || text.startsWith('<')) {
-      throw new Error('Reddit is temporarily unavailable. Please try again.');
+    if (data.error) {
+      throw new Error(data.error);
     }
 
-    return JSON.parse(text);
+    return data;
   } catch (error) {
     if (error.message.includes('Failed to fetch')) {
       throw new Error('Network error. Please check your connection.');
