@@ -1,5 +1,5 @@
 const REDDIT_URL = 'https://www.reddit.com';
-const CORS_PROXY = 'https://corsproxy.io/?';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
