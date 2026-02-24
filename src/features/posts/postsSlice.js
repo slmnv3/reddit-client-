@@ -3,15 +3,23 @@ import { fetchPosts, searchPosts } from '../../api/reddit';
 
 export const loadPosts = createAsyncThunk(
   'posts/loadPosts',
-  async (subreddit) => {
-    return await fetchPosts(subreddit);
+  async (subreddit, { rejectWithValue }) => {
+    try {
+      return await fetchPosts(subreddit);
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
   }
 );
 
 export const searchForPosts = createAsyncThunk(
   'posts/searchForPosts',
-  async (searchTerm) => {
-    return await searchPosts(searchTerm);
+  async (searchTerm, { rejectWithValue }) => {
+    try {
+      return await searchPosts(searchTerm);
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
   }
 );
 
@@ -22,7 +30,7 @@ const postsSlice = createSlice({
     isLoading: false,
     error: null,
     searchTerm: '',
-    selectedSubreddit: 'popular'
+    selectedSubreddit: 'popular',
   },
   reducers: {
     setSearchTerm: (state, action) => {
@@ -30,10 +38,14 @@ const postsSlice = createSlice({
     },
     setSelectedSubreddit: (state, action) => {
       state.selectedSubreddit = action.payload;
-    }
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
+      // Load posts
       .addCase(loadPosts.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -44,8 +56,9 @@ const postsSlice = createSlice({
       })
       .addCase(loadPosts.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message;
+        state.error = action.payload || 'Failed to load posts';
       })
+      // Search posts
       .addCase(searchForPosts.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -56,12 +69,13 @@ const postsSlice = createSlice({
       })
       .addCase(searchForPosts.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message;
+        state.error = action.payload || 'Failed to search posts';
       });
-  }
+  },
 });
 
-export const { setSearchTerm, setSelectedSubreddit } = postsSlice.actions;
+export const { setSearchTerm, setSelectedSubreddit, clearError } = postsSlice.actions;
+
 export const selectPosts = (state) => state.posts.posts;
 export const selectIsLoading = (state) => state.posts.isLoading;
 export const selectError = (state) => state.posts.error;

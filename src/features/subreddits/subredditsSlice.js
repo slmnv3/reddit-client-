@@ -3,8 +3,12 @@ import { fetchSubreddits } from '../../api/reddit';
 
 export const loadSubreddits = createAsyncThunk(
   'subreddits/loadSubreddits',
-  async () => {
-    return await fetchSubreddits();
+  async (_, { rejectWithValue }) => {
+    try {
+      return await fetchSubreddits();
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
   }
 );
 
@@ -13,7 +17,12 @@ const subredditsSlice = createSlice({
   initialState: {
     subreddits: [],
     isLoading: false,
-    error: null
+    error: null,
+  },
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -27,10 +36,15 @@ const subredditsSlice = createSlice({
       })
       .addCase(loadSubreddits.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message;
+        state.error = action.payload || 'Failed to load subreddits';
       });
-  }
+  },
 });
 
+export const { clearError } = subredditsSlice.actions;
+
 export const selectSubreddits = (state) => state.subreddits.subreddits;
+export const selectSubredditsLoading = (state) => state.subreddits.isLoading;
+export const selectSubredditsError = (state) => state.subreddits.error;
+
 export default subredditsSlice.reducer;

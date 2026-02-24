@@ -1,0 +1,25 @@
+.container {
+  display: flex;
+  flex-direction: column;
+}
+
+.noResults {
+  text-align: center;
+  padding: var(--space-xxl);
+  color: var(--color-medium-grey);
+}
+
+.noResultsIcon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: var(--space-md);
+}
+
+.noResults h2 {
+  color: var(--color-dark-grey);
+  margin-bottom: var(--space-sm);
+}
+
+.noResults p {
+  font-size: 0.875rem;
+}

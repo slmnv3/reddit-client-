@@ -3,8 +3,12 @@ import { fetchPostComments } from '../../api/reddit';
 
 export const loadComments = createAsyncThunk(
   'postDetail/loadComments',
-  async (permalink) => {
-    return await fetchPostComments(permalink);
+  async (permalink, { rejectWithValue }) => {
+    try {
+      return await fetchPostComments(permalink);
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
   }
 );
 
@@ -14,12 +18,20 @@ const postDetailSlice = createSlice({
     post: null,
     comments: [],
     isLoading: false,
-    error: null
+    error: null,
   },
   reducers: {
     setSelectedPost: (state, action) => {
       state.post = action.payload;
-    }
+    },
+    clearPostDetail: (state) => {
+      state.post = null;
+      state.comments = [];
+      state.error = null;
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -33,12 +45,13 @@ const postDetailSlice = createSlice({
       })
       .addCase(loadComments.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message;
+        state.error = action.payload || 'Failed to load comments';
       });
-  }
+  },
 });
 
-export const { setSelectedPost } = postDetailSlice.actions;
+export const { setSelectedPost, clearPostDetail, clearError } = postDetailSlice.actions;
+
 export const selectPost = (state) => state.postDetail.post;
 export const selectComments = (state) => state.postDetail.comments;
 export const selectIsLoading = (state) => state.postDetail.isLoading;
