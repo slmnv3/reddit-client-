@@ -1,8 +1,10 @@
-const BASE_URL = 'https://www.reddit.com';
+// Use proxy in production, direct URL in development
+const BASE_URL = import.meta.env.DEV
+  ? 'https://www.reddit.com'
+  : '/api';
 
-// Rate limiting with request queue
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 7000; // 7 seconds between requests (safe for 10/min limit)
+const MIN_REQUEST_INTERVAL = 7000;
 
 const rateLimitedFetch = async (url) => {
   const now = Date.now();
@@ -19,7 +21,6 @@ const rateLimitedFetch = async (url) => {
     const response = await fetch(url);
 
     if (response.status === 429) {
-      // Rate limited - wait and retry once
       console.warn('Rate limited by Reddit. Waiting 60 seconds...');
       await new Promise((resolve) => setTimeout(resolve, 60000));
       const retryResponse = await fetch(url);
@@ -44,7 +45,7 @@ const rateLimitedFetch = async (url) => {
 
 // Simple in-memory cache
 const cache = {};
-const CACHE_DURATION = 60000; // Cache for 60 seconds
+const CACHE_DURATION = 60000;
 
 const cachedFetch = async (url) => {
   const now = Date.now();
