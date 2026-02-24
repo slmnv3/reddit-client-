@@ -1,17 +1,10 @@
-// In development, call Reddit directly
-// In production, use our Netlify serverless function as proxy
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
-  let url;
   if (isDev) {
-    url = `https://www.reddit.com${path}`;
-  } else {
-    url = `/api/reddit-proxy?path=${encodeURIComponent(path)}`;
+    return `https://www.reddit.com${path}`;
   }
-  console.log('Environment:', isDev ? 'Development' : 'Production');
-  console.log('Fetching URL:', url);
-  return url;
+  return `/api/reddit-proxy?path=${encodeURIComponent(path)}`;
 };
 
 let lastRequestTime = 0;
@@ -32,17 +25,7 @@ const rateLimitedFetch = async (url) => {
     const response = await fetch(url);
 
     if (response.status === 429) {
-      console.warn('Rate limited. Waiting 60 seconds...');
-      await new Promise((resolve) => setTimeout(resolve, 60000));
-      const retryResponse = await fetch(url);
-      if (!retryResponse.ok) {
-        throw new Error('Still rate limited. Please wait and try again.');
-      }
-      return retryResponse.json();
-    }
-
-    if (response.status === 403) {
-      throw new Error('Access denied by Reddit. Please try again later.');
+      throw new Error('Rate limited. Please wait a minute and try again.');
     }
 
     if (!response.ok) {
@@ -51,9 +34,8 @@ const rateLimitedFetch = async (url) => {
 
     const data = await response.json();
 
-    // Check if Reddit returned an error
     if (data.error) {
-      throw new Error(`Reddit error: ${data.error}`);
+      throw new Error(data.error);
     }
 
     return data;
@@ -66,7 +48,7 @@ const rateLimitedFetch = async (url) => {
 };
 
 const cache = {};
-const CACHE_DURATION = 60000;
+const CACHE_DURATION = 120000;
 
 const cachedFetch = async (url) => {
   const now = Date.now();

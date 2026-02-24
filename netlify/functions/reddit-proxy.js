@@ -1,7 +1,6 @@
-const REDDIT_URLS = [
-  'https://old.reddit.com',
-  'https://www.reddit.com',
-  'https://api.reddit.com',
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
 ];
 
 export default async (req) => {
@@ -15,34 +14,54 @@ export default async (req) => {
     );
   }
 
+  const redditUrl = `https://www.reddit.com${path}`;
   let lastError = null;
 
-  // Try each Reddit URL until one works
-  for (const baseUrl of REDDIT_URLS) {
-    try {
-      const redditUrl = `${baseUrl}${path}`;
+  // Try direct fetch first
+  try {
+    const response = await fetch(redditUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; RedditLite/1.0)',
+        'Accept': 'application/json',
+      },
+    });
 
-      const response = await fetch(redditUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; RedditLite/1.0)',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
+    if (response.ok) {
+      const text = await response.text();
+      if (!text.startsWith('<!')) {
+        return new Response(text, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=60',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    }
+    lastError = `Direct fetch failed: ${response.status}`;
+  } catch (error) {
+    lastError = error.message;
+  }
+
+  // Try CORS proxies as fallback
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxyUrl = `${proxy}${encodeURIComponent(redditUrl)}`;
+      const response = await fetch(proxyUrl);
 
       if (!response.ok) {
-        lastError = `${baseUrl} returned ${response.status}`;
+        lastError = `${proxy} returned ${response.status}`;
         continue;
       }
 
       const text = await response.text();
 
       if (text.startsWith('<!') || text.startsWith('<html')) {
-        lastError = `${baseUrl} returned HTML`;
+        lastError = `${proxy} returned HTML`;
         continue;
       }
 
-      // Success!
       return new Response(text, {
         status: 200,
         headers: {
@@ -57,9 +76,8 @@ export default async (req) => {
     }
   }
 
-  // All URLs failed
   return new Response(
-    JSON.stringify({ error: `All Reddit endpoints failed. Last error: ${lastError}` }),
+    JSON.stringify({ error: `All endpoints failed. Last error: ${lastError}` }),
     {
       status: 502,
       headers: { 'Content-Type': 'application/json' },
