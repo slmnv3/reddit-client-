@@ -1,4 +1,4 @@
-const PROXY_URL = 'https://YOUR-RENDER-URL.onrender.com';
+const PROXY_URL = 'https://reddit-proxy-server-hhk2.onrender.com';
 const isDev = import.meta.env.DEV;
 
 const buildUrl = (path) => {
