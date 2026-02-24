@@ -1,3 +1,9 @@
+const REDDIT_URLS = [
+  'https://old.reddit.com',
+  'https://www.reddit.com',
+  'https://api.reddit.com',
+];
+
 export default async (req) => {
   const url = new URL(req.url);
   const path = url.searchParams.get('path');
@@ -9,45 +15,56 @@ export default async (req) => {
     );
   }
 
-  const redditUrl = `https://www.reddit.com${path}`;
+  let lastError = null;
 
-  try {
-    const response = await fetch(redditUrl, {
-      headers: {
-        'User-Agent': 'RedditLite/1.0 (Netlify Serverless)',
-        'Accept': 'application/json',
-      },
-    });
+  // Try each Reddit URL until one works
+  for (const baseUrl of REDDIT_URLS) {
+    try {
+      const redditUrl = `${baseUrl}${path}`;
 
-    if (!response.ok) {
-      return new Response(
-        JSON.stringify({ error: `Reddit API error: ${response.status}` }),
-        {
-          status: response.status,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
+      const response = await fetch(redditUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; RedditLite/1.0)',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
 
-    const data = await response.json();
-
-    return new Response(JSON.stringify(data), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=60',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
+      if (!response.ok) {
+        lastError = `${baseUrl} returned ${response.status}`;
+        continue;
       }
-    );
+
+      const text = await response.text();
+
+      if (text.startsWith('<!') || text.startsWith('<html')) {
+        lastError = `${baseUrl} returned HTML`;
+        continue;
+      }
+
+      // Success!
+      return new Response(text, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=60',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    } catch (error) {
+      lastError = error.message;
+      continue;
+    }
   }
+
+  // All URLs failed
+  return new Response(
+    JSON.stringify({ error: `All Reddit endpoints failed. Last error: ${lastError}` }),
+    {
+      status: 502,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
 };
 
 export const config = {
