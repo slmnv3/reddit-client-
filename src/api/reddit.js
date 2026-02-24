@@ -1,7 +1,7 @@
-// Use proxy in production, direct URL in development
-const BASE_URL = import.meta.env.DEV
-  ? 'https://www.reddit.com'
-  : '/api';
+// Use proxy in production, direct in development
+const BASE_URL = import.meta.env.PROD
+  ? '/api'
+  : 'https://www.reddit.com';
 
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 7000;
@@ -18,12 +18,24 @@ const rateLimitedFetch = async (url) => {
   lastRequestTime = Date.now();
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (response.status === 403) {
+      throw new Error('Access denied by Reddit. Please try again later.');
+    }
 
     if (response.status === 429) {
-      console.warn('Rate limited by Reddit. Waiting 60 seconds...');
+      console.warn('Rate limited. Waiting 60 seconds...');
       await new Promise((resolve) => setTimeout(resolve, 60000));
-      const retryResponse = await fetch(url);
+      const retryResponse = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
       if (!retryResponse.ok) {
         throw new Error('Still rate limited. Please wait and try again.');
       }
@@ -43,7 +55,6 @@ const rateLimitedFetch = async (url) => {
   }
 };
 
-// Simple in-memory cache
 const cache = {};
 const CACHE_DURATION = 60000;
 
@@ -51,7 +62,6 @@ const cachedFetch = async (url) => {
   const now = Date.now();
 
   if (cache[url] && now - cache[url].timestamp < CACHE_DURATION) {
-    console.log('Using cached data for:', url);
     return cache[url].data;
   }
 
