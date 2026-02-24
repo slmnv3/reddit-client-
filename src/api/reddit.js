@@ -1,40 +1,67 @@
 const BASE_URL = 'https://www.reddit.com';
 
-// Rate limiting: Reddit allows 10 requests per minute
-const RATE_LIMIT_DELAY = 6000; // 6 seconds between requests (safe buffer)
+// Rate limiting with request queue
 let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 7000; // 7 seconds between requests (safe for 10/min limit)
 
 const rateLimitedFetch = async (url) => {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
 
-  if (timeSinceLastRequest < RATE_LIMIT_DELAY) {
-    const waitTime = RATE_LIMIT_DELAY - timeSinceLastRequest;
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
     await new Promise((resolve) => setTimeout(resolve, waitTime));
   }
 
   lastRequestTime = Date.now();
 
-  const response = await fetch(url);
+  try {
+    const response = await fetch(url);
 
-  // Handle rate limiting (HTTP 429)
-  if (response.status === 429) {
-    const retryAfter = response.headers.get('Retry-After') || 60;
-    throw new Error(
-      `Rate limited by Reddit. Please wait ${retryAfter} seconds and try again.`
-    );
+    if (response.status === 429) {
+      // Rate limited - wait and retry once
+      console.warn('Rate limited by Reddit. Waiting 60 seconds...');
+      await new Promise((resolve) => setTimeout(resolve, 60000));
+      const retryResponse = await fetch(url);
+      if (!retryResponse.ok) {
+        throw new Error('Still rate limited. Please wait and try again.');
+      }
+      return retryResponse.json();
+    }
+
+    if (!response.ok) {
+      throw new Error(`Reddit API error: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error('Network error. Please check your connection.');
+    }
+    throw error;
+  }
+};
+
+// Simple in-memory cache
+const cache = {};
+const CACHE_DURATION = 60000; // Cache for 60 seconds
+
+const cachedFetch = async (url) => {
+  const now = Date.now();
+
+  if (cache[url] && now - cache[url].timestamp < CACHE_DURATION) {
+    console.log('Using cached data for:', url);
+    return cache[url].data;
   }
 
-  if (!response.ok) {
-    throw new Error(`Reddit API error: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
+  const data = await rateLimitedFetch(url);
+  cache[url] = { data, timestamp: now };
+  return data;
 };
 
 export const fetchPosts = async (subreddit = 'popular') => {
   try {
-    const data = await rateLimitedFetch(`${BASE_URL}/r/${subreddit}.json`);
+    const data = await cachedFetch(`${BASE_URL}/r/${subreddit}.json`);
     return data.data.children.map((post) => post.data);
   } catch (error) {
     throw new Error(error.message || 'Failed to fetch posts');
@@ -43,7 +70,7 @@ export const fetchPosts = async (subreddit = 'popular') => {
 
 export const searchPosts = async (searchTerm) => {
   try {
-    const data = await rateLimitedFetch(
+    const data = await cachedFetch(
       `${BASE_URL}/search.json?q=${encodeURIComponent(searchTerm)}`
     );
     return data.data.children.map((post) => post.data);
@@ -54,10 +81,9 @@ export const searchPosts = async (searchTerm) => {
 
 export const fetchPostComments = async (permalink) => {
   try {
-    const data = await rateLimitedFetch(`${BASE_URL}${permalink}.json`);
-    // First element is the post, second is the comments
+    const data = await cachedFetch(`${BASE_URL}${permalink}.json`);
     return data[1].data.children
-      .filter((comment) => comment.kind === 't1') // Filter only actual comments
+      .filter((comment) => comment.kind === 't1')
       .map((comment) => comment.data);
   } catch (error) {
     throw new Error(error.message || 'Failed to fetch comments');
@@ -66,7 +92,9 @@ export const fetchPostComments = async (permalink) => {
 
 export const fetchSubreddits = async () => {
   try {
-    const data = await rateLimitedFetch(`${BASE_URL}/subreddits/popular.json?limit=20`);
+    const data = await cachedFetch(
+      `${BASE_URL}/subreddits/popular.json?limit=20`
+    );
     return data.data.children.map((sub) => sub.data);
   } catch (error) {
     throw new Error(error.message || 'Failed to fetch subreddits');
