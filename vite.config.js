@@ -7,5 +7,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
+    css: {
+      modules: {
+        classNameStrategy: 'non-scoped'
+      }
+    }
   }
 });
